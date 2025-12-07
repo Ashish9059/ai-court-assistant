@@ -1,20 +1,40 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage } from '../types';
+import { ChatMessage, CommonViewProps } from '../types';
 import { generateLegalResponse } from '../services/gemini';
-import { Send, User, Bot, AlertCircle } from 'lucide-react';
+import { Send, AlertCircle, Globe } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
-const Chat: React.FC = () => {
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: '1',
-      role: 'model',
-      text: 'Namaste! I am Nyaya Sahayak. Ask me any question related to Indian Law (IPC, CrPC, Property, Family Law, etc.).',
-    },
-  ]);
+const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage }) => {
+  const t = {
+      welcome: language === 'en' 
+        ? 'Namaste! I am Nyaya Sahayak. Ask me any question related to Indian Law (IPC, CrPC, Property, Family Law, etc.).'
+        : 'नमस्ते! मैं न्याय सहायक हूँ। मुझसे भारतीय कानून (IPC, CrPC, संपत्ति, परिवार कानून, आदि) से संबंधित कोई भी प्रश्न पूछें।',
+      placeholder: language === 'en' ? 'Ask about Indian Law...' : 'भारतीय कानून के बारे में पूछें...',
+      disclaimer: language === 'en' 
+        ? 'AI can make mistakes. Information provided is for educational purposes and not a substitute for professional legal counsel.'
+        : 'AI गलतियाँ कर सकता है। प्रदान की गई जानकारी शैक्षिक उद्देश्यों के लिए है और पेशेवर कानूनी सलाह का विकल्प नहीं है।',
+      loading: language === 'en' ? 'Thinking...' : 'सोच रहा हूँ...',
+      title: language === 'en' ? 'Legal Chat' : 'कानूनी चैट',
+  };
+
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Initialize welcome message when language changes or on mount
+  useEffect(() => {
+    setMessages(prev => {
+        if (prev.length === 0) {
+            return [{ id: '1', role: 'model', text: t.welcome }];
+        }
+        // If the first message is the welcome message, update it to current language
+        if (prev[0].id === '1' && prev.length === 1) {
+             return [{ ...prev[0], text: t.welcome }];
+        }
+        return prev;
+    });
+  }, [language, t.welcome]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -38,7 +58,7 @@ const Chat: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const responseText = await generateLegalResponse(input);
+      const responseText = await generateLegalResponse(input, language);
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'model',
@@ -54,12 +74,21 @@ const Chat: React.FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-darkbg">
+       <div className="p-4 bg-cardbg border-b border-slate-700 flex justify-between items-center shadow-sm z-10">
+          <h2 className="text-lg font-bold text-white">{t.title}</h2>
+          <button 
+            onClick={toggleLanguage}
+            className="flex items-center space-x-1 bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors border border-slate-600"
+        >
+            <Globe size={14} />
+            <span>{language === 'en' ? 'हिंदी' : 'English'}</span>
+        </button>
+      </div>
+
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-3 flex items-start space-x-2">
             <AlertCircle size={16} className="text-yellow-500 mt-0.5 shrink-0" />
-            <p className="text-xs text-yellow-200">
-                AI can make mistakes. Information provided is for educational purposes and not a substitute for professional legal counsel.
-            </p>
+            <p className="text-xs text-yellow-200">{t.disclaimer}</p>
         </div>
 
         {messages.map((msg) => (
@@ -101,6 +130,7 @@ const Chat: React.FC = () => {
                 <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
                 <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
                 <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <span className="text-xs text-slate-500 ml-2">{t.loading}</span>
             </div>
           </div>
         )}
@@ -114,7 +144,7 @@ const Chat: React.FC = () => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="Ask about Indian Law..."
+            placeholder={t.placeholder}
             className="flex-1 bg-darkbg border border-slate-600 rounded-full px-4 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500"
           />
           <button

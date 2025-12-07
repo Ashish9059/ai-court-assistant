@@ -11,6 +11,8 @@ export enum View {
   DICTIONARY = 'DICTIONARY',
 }
 
+export type Language = 'en' | 'hi';
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'model';
@@ -34,4 +36,11 @@ export enum NoticeType {
   CONSUMER = 'Consumer Complaint',
   DEFAMATION = 'Defamation',
   LOAN_RECOVERY = 'Loan Recovery Misuse',
+}
+
+export interface CommonViewProps {
+  language: Language;
+  toggleLanguage: () => void;
+  onBack?: () => void;
+  setView?: (view: View) => void;
 }

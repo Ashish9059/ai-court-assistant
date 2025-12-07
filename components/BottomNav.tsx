@@ -1,18 +1,26 @@
 import React from 'react';
-import { View } from '../types';
+import { View, Language } from '../types';
 import { Home, MessageSquare, Scale, FileSearch } from 'lucide-react';
 
 interface BottomNavProps {
   currentView: View;
   setView: (view: View) => void;
+  language: Language;
 }
 
-const BottomNav: React.FC<BottomNavProps> = ({ currentView, setView }) => {
+const BottomNav: React.FC<BottomNavProps> = ({ currentView, setView, language }) => {
+  const labels = {
+    [View.HOME]: language === 'en' ? 'Home' : 'मुख्य पृष्ठ',
+    [View.CHAT]: language === 'en' ? 'Chat' : 'चैट',
+    [View.LAW_FINDER]: language === 'en' ? 'Laws' : 'कानून',
+    [View.DOCUMENT_ANALYZER]: language === 'en' ? 'Analyze' : 'विश्लेषण',
+  };
+
   const navItems = [
-    { view: View.HOME, label: 'Home', icon: Home },
-    { view: View.CHAT, label: 'Chat', icon: MessageSquare },
-    { view: View.LAW_FINDER, label: 'Laws', icon: Scale },
-    { view: View.DOCUMENT_ANALYZER, label: 'Analyze', icon: FileSearch },
+    { view: View.HOME, icon: Home },
+    { view: View.CHAT, icon: MessageSquare },
+    { view: View.LAW_FINDER, icon: Scale },
+    { view: View.DOCUMENT_ANALYZER, icon: FileSearch },
   ];
 
   return (
@@ -29,7 +37,7 @@ const BottomNav: React.FC<BottomNavProps> = ({ currentView, setView }) => {
               }`}
             >
               <item.icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-              <span className="text-xs font-medium">{item.label}</span>
+              <span className="text-xs font-medium">{labels[item.view]}</span>
             </button>
           );
         })}
