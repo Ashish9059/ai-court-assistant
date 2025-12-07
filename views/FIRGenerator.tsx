@@ -14,6 +14,7 @@ interface SavedDraft {
   timestamp: number;
   formData: FIRFormData;
   content: string;
+  name?: string;
 }
 
 const initialFormState: FIRFormData = {
@@ -122,11 +123,18 @@ const FIRGenerator: React.FC<FIRGeneratorProps> = ({ onBack }) => {
 
   const handleSaveDraft = () => {
     if (!draft) return;
+
+    const defaultName = `${formData.complainant} - ${new Date().toLocaleDateString()}`;
+    const name = window.prompt("Save Draft as:", defaultName);
+    
+    if (name === null) return; // User cancelled
+
     const newDraft: SavedDraft = {
         id: Date.now().toString(),
         timestamp: Date.now(),
         formData: { ...formData },
-        content: draft
+        content: draft,
+        name: name || defaultName
     };
     
     // Refresh list from storage before adding to avoid overwriting if modified elsewhere
@@ -191,6 +199,7 @@ const FIRGenerator: React.FC<FIRGeneratorProps> = ({ onBack }) => {
         alert('Content copied to clipboard!');
       } catch (err) {
         console.error('Failed to copy', err);
+        alert('Failed to copy content.');
       }
     }
   };
@@ -309,7 +318,7 @@ const FIRGenerator: React.FC<FIRGeneratorProps> = ({ onBack }) => {
                                     className="bg-cardbg p-4 rounded-xl border border-slate-700 flex justify-between items-center hover:bg-slate-800 cursor-pointer group transition-colors shadow-sm"
                                 >
                                     <div className="overflow-hidden mr-3 flex-1">
-                                        <h4 className="text-white font-medium truncate">FIR: {item.formData.complainant} vs {item.formData.accused || 'Unknown'}</h4>
+                                        <h4 className="text-white font-medium truncate">{item.name || `FIR: ${item.formData.complainant} vs ${item.formData.accused || 'Unknown'}`}</h4>
                                         <p className="text-xs text-slate-400 mt-1 flex items-center gap-2">
                                             <span className="bg-slate-700 px-1.5 py-0.5 rounded text-[10px]">{new Date(item.timestamp).toLocaleDateString()}</span>
                                             <span>{new Date(item.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -499,7 +508,7 @@ const FIRGenerator: React.FC<FIRGeneratorProps> = ({ onBack }) => {
                     <button 
                       onClick={handleSaveDraft}
                       className="text-green-400 hover:text-green-300 bg-green-900/20 hover:bg-green-900/40 p-1.5 rounded-lg transition-colors"
-                      title="Save to History"
+                      title="Save Draft"
                     >
                         <Save size={18} />
                     </button>
