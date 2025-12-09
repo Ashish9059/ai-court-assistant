@@ -151,6 +151,7 @@ const App: React.FC = () => {
   const commonProps = {
       language,
       toggleLanguage,
+      setView: setCurrentView,
   };
 
   const renderContent = () => {

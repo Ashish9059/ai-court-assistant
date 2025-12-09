@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChatMessage, CommonViewProps } from '../types';
-import { generateLegalResponse } from '../services/gemini';
-import { Send, AlertCircle, Globe } from 'lucide-react';
+import { ChatMessage, CommonViewProps, View, AgentAction } from '../types';
+import { chatWithAgent } from '../services/gemini';
+import { Send, AlertCircle, Globe, ChevronRight } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 
-const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage }) => {
+const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) => {
   const t = {
       welcome: language === 'en' 
         ? 'Namaste! I am Nyaya Sahayak. Ask me any question related to Indian Law (IPC, CrPC, Property, Family Law, etc.).'
@@ -15,6 +15,7 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage }) => {
         : 'AI गलतियाँ कर सकता है। प्रदान की गई जानकारी शैक्षिक उद्देश्यों के लिए है और पेशेवर कानूनी सलाह का विकल्प नहीं है।',
       loading: language === 'en' ? 'Thinking...' : 'सोच रहा हूँ...',
       title: language === 'en' ? 'Legal Chat' : 'कानूनी चैट',
+      actionBtn: (action: string) => language === 'en' ? `Open ${action}` : `${action} खोलें`,
   };
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -22,13 +23,11 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage }) => {
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Initialize welcome message when language changes or on mount
   useEffect(() => {
     setMessages(prev => {
         if (prev.length === 0) {
             return [{ id: '1', role: 'model', text: t.welcome }];
         }
-        // If the first message is the welcome message, update it to current language
         if (prev[0].id === '1' && prev.length === 1) {
              return [{ ...prev[0], text: t.welcome }];
         }
@@ -58,12 +57,15 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage }) => {
     setIsLoading(true);
 
     try {
-      const responseText = await generateLegalResponse(input, language);
+      const response = await chatWithAgent(input, language);
+      
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'model',
-        text: responseText,
+        text: response.response_text,
+        action: response.action !== 'generalAnswer' ? response.action : undefined,
       };
+      
       setMessages((prev) => [...prev, botMsg]);
     } catch (error) {
       // Handle error gracefully
@@ -71,6 +73,36 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage }) => {
       setIsLoading(false);
     }
   };
+
+  const handleActionClick = (action: AgentAction) => {
+    if (!setView) return;
+    
+    switch (action) {
+        case 'generateFIR': setView(View.FIR_GENERATOR); break;
+        case 'generateNotice': setView(View.NOTICE_GENERATOR); break;
+        case 'summarizeCase': setView(View.CASE_SUMMARY); break;
+        case 'analyzeDocument': setView(View.DOCUMENT_ANALYZER); break;
+        case 'offenceChecker': setView(View.LAW_FINDER); break;
+        case 'timelineInfo': setView(View.TIMELINE); break;
+        case 'rightsInfo': setView(View.RIGHTS); break;
+        case 'dictionaryLookup': setView(View.DICTIONARY); break;
+        default: break;
+    }
+  };
+
+  const getActionLabel = (action: AgentAction) => {
+      switch(action) {
+          case 'generateFIR': return language === 'en' ? 'Go to FIR Generator' : 'FIR जनरेटर पर जाएं';
+          case 'generateNotice': return language === 'en' ? 'Go to Notice Generator' : 'नोटिस जनरेटर पर जाएं';
+          case 'summarizeCase': return language === 'en' ? 'Go to Case Summary' : 'केस सारांश पर जाएं';
+          case 'analyzeDocument': return language === 'en' ? 'Go to Document Analyzer' : 'दस्तावेज़ विश्लेषक पर जाएं';
+          case 'offenceChecker': return language === 'en' ? 'Go to Law Finder' : 'कानून खोजक पर जाएं';
+          case 'timelineInfo': return language === 'en' ? 'View Timeline' : 'समयरेखा देखें';
+          case 'rightsInfo': return language === 'en' ? 'Read Rights' : 'अधिकार पढ़ें';
+          case 'dictionaryLookup': return language === 'en' ? 'Open Dictionary' : 'शब्दकोश खोलें';
+          default: return language === 'en' ? 'Open Tool' : 'टूल खोलें';
+      }
+  }
 
   return (
     <div className="flex flex-col h-full bg-darkbg">
@@ -94,7 +126,7 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage }) => {
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
           >
             <div
               className={`max-w-[85%] rounded-2xl p-3 text-sm ${
@@ -122,6 +154,16 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage }) => {
                     msg.text
                 )}
             </div>
+            
+            {msg.role === 'model' && msg.action && (
+                <button
+                    onClick={() => handleActionClick(msg.action!)}
+                    className="mt-2 flex items-center space-x-2 bg-blue-500/20 text-blue-300 px-4 py-2 rounded-xl text-xs font-bold border border-blue-500/50 hover:bg-blue-500/30 transition-colors animate-fade-in"
+                >
+                    <span>{getActionLabel(msg.action)}</span>
+                    <ChevronRight size={14} />
+                </button>
+            )}
           </div>
         ))}
         {isLoading && (

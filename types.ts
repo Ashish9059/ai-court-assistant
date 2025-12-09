@@ -13,10 +13,31 @@ export enum View {
 
 export type Language = 'en' | 'hi';
 
+export type AgentAction = 
+  | 'generateFIR' 
+  | 'generateNotice' 
+  | 'summarizeCase' 
+  | 'analyzeDocument' 
+  | 'offenceChecker' 
+  | 'dictionaryLookup' 
+  | 'timelineInfo'
+  | 'rightsInfo'
+  | 'generalAnswer';
+
+export interface AgentResponse {
+  intent: string;
+  confidence: string;
+  required_fields: string[];
+  response_text: string;
+  action: AgentAction;
+  data: Record<string, any>;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'model';
   text: string;
+  action?: AgentAction;
   isLoading?: boolean;
 }
 
