@@ -1,0 +1,7 @@
+{
+  "name": "Copy of Nyaya Sahayak - AI Court Assistant",
+  "description": "A comprehensive AI-powered legal assistant for Indian law. Features include legal chat, law finder, document analysis, FIR drafting, and legal notice generation.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
