@@ -51,6 +51,7 @@ Experience the application directly in **Google AI Studio**:
    npm install
 
 3. Set environment variables 
+
    Create a. env. local file in the root     directory and add your API key:
 
    ```env
