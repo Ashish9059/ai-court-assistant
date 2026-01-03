@@ -50,7 +50,8 @@ Experience the application directly in **Google AI Studio**:
    ```bash
    npm install
 
-3. Set environment variables Create a. env. local file in the root directory:
+3. Set environment variables 
+   Create a. env. local file in the root     directory and add your API key:
 
    ```env
    VITE_GEMINI_API_KEY=your_gemini_api_ke y_here
