@@ -53,12 +53,15 @@ View the app in **Google AI Studio**:
    ```bash
    npm install
 
-
+2. **Set environment variables
 Create a .env.local file and add:
+
 GEMINI_API_KEY=your_gemini_api_key_here
 
-Run the app:
-npm run dev
+3. **Run the app
+   ```bash
+   npm run dev
 
-Open in your browser:
-http://localhost:5173
+4. **Open in your browser:
+
+   http://localhost:5173
