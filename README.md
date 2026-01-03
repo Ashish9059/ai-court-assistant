@@ -47,22 +47,18 @@ Experience the application directly in **Google AI Studio**:
    git clone [https://github.com/your-username/ai-court-assistant.git](https://github.com/your-username/ai-court-assistant.git)
    cd ai-court-assistant
 2. Install dependencies
-
-bash
-
-npm install
+   ```bash
+   npm install
 
 3. Set environment variables Create a. env. local file in the root directory:
 
-env
+   ```env
 
 VITE_GEMINI_API_KEY=your_gemini_api_ke y_here
 
 4. Run the app
-
-bash
-
-npm run dev
+   ```bash
+   npm run dev
 
 5. Open in browser Visit: http://localhost: 5173
 
@@ -76,7 +72,7 @@ Processing: The prompt is sent via the Gemini API.
 Validation: The model generates a response filtered for educational accuracy.
 Display: The user receives a formatted, easy-to-read breakdown of the information.
 
-###📂 Project Structure
+### 📂 Project Structure
 
 ai-court-assistant/
 ├── public/
