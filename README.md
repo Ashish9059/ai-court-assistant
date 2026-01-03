@@ -75,7 +75,7 @@ Display: The user receives a formatted, easy-to-read breakdown of the informatio
 
 ### 📂 Project Structure
 
-ai-court-assistant/
+```ai-court-assistant/
 ├── public/
 │   └── favicon.ico
 ├── src/
@@ -97,6 +97,7 @@ ai-court-assistant/
 ├── tsconfig.json
 ├── vite.config.ts
 └── README.md
+```
 
 
 ### Why This Project?
@@ -104,7 +105,7 @@ Legal systems are complex and often inaccessible. AI Court Assistant explores ho
 Reduce Barriers: Lower the threshold for understanding legal documents and rights.
 Improve Awareness: Help citizens prepare for court appearances with procedural knowledge.
 Responsible AI: Demonstrate how to provide guidance without overstepping into professional legal counsel.
-###🏆 Competition Context
+### 🏆 Competition Context
 This project was created for the Google DeepMind Vibe Coding Competition on Kaggle, focusing on:
 Practical AI Applications: Real-world utility for everyday users.
 Safety & Responsibility: Clear disclaimers and educational boundaries.
