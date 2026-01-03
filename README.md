@@ -1,18 +1,3 @@
-<div align="center">
-  <img width="1200" height="475" alt="AI Court Assistant Banner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-
-  <h1>⚖️ AI Court Assistant</h1>
-  <p><strong>An AI-Powered Legal Guidance & Court Understanding Application</strong></p>
-
-  <p>
-    <img src="https://img.shields.io/badge/Competition-Google%20DeepMind%20Vibe-blue" alt="Competition" />
-    <img src="https://img.shields.io/badge/AI-Google%20Gemini-orange" alt="AI" />
-    <img src="https://img.shields.io/badge/Built%20With-React%20%2B%20TypeScript-brightgreen" alt="Built With" />
-  </p>
-</div>
-
----
-
 ## 🧠 Overview
 
 **AI Court Assistant** is a conversational AI web application that helps users understand legal concepts, court procedures, and case-related questions using natural language.
@@ -69,9 +54,7 @@ npm install
 
 3. Set environment variables Create a. env. local file in the root directory:
 
-bash
-
-0
+env
 
 VITE_GEMINI_API_KEY=your_gemini_api_ke y_here
 
@@ -85,13 +68,15 @@ npm run dev
 
 
 
-🔁 Application Workflow
+### Application Workflow
+
 Input: User submits a query regarding a court procedure or legal term.
 Contextualization: The application wraps the input with safety prompts and educational context.
 Processing: The prompt is sent via the Gemini API.
 Validation: The model generates a response filtered for educational accuracy.
 Display: The user receives a formatted, easy-to-read breakdown of the information.
-📂 Project Structure
+
+###📂 Project Structure
 
 ai-court-assistant/
 ├── public/
@@ -117,12 +102,12 @@ ai-court-assistant/
 └── README.md
 
 
-🌍 Why This Project?
+### Why This Project?
 Legal systems are complex and often inaccessible. AI Court Assistant explores how generative AI can:
 Reduce Barriers: Lower the threshold for understanding legal documents and rights.
 Improve Awareness: Help citizens prepare for court appearances with procedural knowledge.
 Responsible AI: Demonstrate how to provide guidance without overstepping into professional legal counsel.
-🏆 Competition Context
+###🏆 Competition Context
 This project was created for the Google DeepMind Vibe Coding Competition on Kaggle, focusing on:
 Practical AI Applications: Real-world utility for everyday users.
 Safety & Responsibility: Clear disclaimers and educational boundaries.
