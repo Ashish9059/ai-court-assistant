@@ -53,8 +53,7 @@ Experience the application directly in **Google AI Studio**:
 3. Set environment variables Create a. env. local file in the root directory:
 
    ```env
-
-VITE_GEMINI_API_KEY=your_gemini_api_ke y_here
+   VITE_GEMINI_API_KEY=your_gemini_api_ke y_here
 
 4. Run the app
    ```bash
