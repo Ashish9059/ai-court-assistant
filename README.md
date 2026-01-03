@@ -66,30 +66,30 @@ GEMINI_API_KEY=your_gemini_api_key_here
 ## Project Structure
 
 ai-court-assistant/
-├── public/                 # Static assets
+├── public/           
 │   └── favicon.ico
 │
 ├── src/
-│   ├── components/         # Reusable UI components
+│   ├── components/        
 │   │   ├── ChatInput.tsx
 │   │   ├── ChatMessage.tsx
 │   │   └── Header.tsx
 │   │
-│   ├── services/           # AI & API interaction logic
+│   ├── services/           
 │   │   └── geminiService.ts
 │   │
-│   ├── views/              # Application pages/views
+│   ├── views/             
 │   │   └── ChatView.tsx
 │   │
-│   ├── types.ts            # Global TypeScript interfaces & types
+│   ├── types.ts    
 │   │
-│   ├── App.tsx             # Root application component
-│   └── main.tsx            # Application entry point
+│   ├── App.tsx             
+│   └── main.tsx            
 │
-├── .env.local              # Environment variables (Gemini API Key)
-├── index.html              # HTML entry file
-├── metadata.json           # App metadata for AI Studio
-├── package.json            # Dependencies and scripts
-├── tsconfig.json           # TypeScript configuration
-├── vite.config.ts          # Vite configuration
-└── README.md               # Project documentation
+├── .env.local              
+├── index.html             
+├── metadata.json           
+├── package.json            
+├── tsconfig.json           
+├── vite.config.ts         
+└── README.md               
