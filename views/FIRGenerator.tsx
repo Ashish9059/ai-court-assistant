@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
-import { generateFIRDraft } from '../services/gemini';
-import { ArrowLeft, Loader2, Copy, Save, Trash2, History as HistoryIcon, Edit, Plus, FileText, Share2, AlertCircle, ChevronLeft, ChevronRight, Download, Globe } from 'lucide-react';
-import { FIRFormData, CommonViewProps } from '../types';
+import { generateFIRDraft, translateText } from '../services/gemini';
+import { ArrowLeft, Loader2, Copy, Save, Trash2, History as HistoryIcon, Edit, Plus, FileText, Share2, AlertCircle, ChevronLeft, ChevronRight, Download, Globe, Mic, MicOff } from 'lucide-react';
+import { FIRFormData, CommonViewProps, IncidentType } from '../types';
 import { jsPDF } from "jspdf";
 
 interface SavedDraft {
@@ -17,6 +17,7 @@ const initialFormState: FIRFormData = {
   complainant: '',
   accused: '',
   dateTime: '',
+  incidentType: '',
   incidentDetails: '',
   evidence: '',
 };
@@ -32,6 +33,9 @@ const FIRGenerator: React.FC<CommonViewProps> = ({ onBack, language, toggleLangu
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [errors, setErrors] = useState<Partial<Record<keyof FIRFormData, string>>>({});
+  
+  // Speech Recognition State
+  const [listeningField, setListeningField] = useState<keyof FIRFormData | null>(null);
 
   const t = {
       title: language === 'en' ? 'FIR Draft Generator' : 'FIR जनरेटर',
@@ -39,6 +43,7 @@ const FIRGenerator: React.FC<CommonViewProps> = ({ onBack, language, toggleLangu
       complainant: language === 'en' ? 'Complainant Name' : 'शिकायतकर्ता का नाम',
       accused: language === 'en' ? 'Accused Details' : 'आरोपी का विवरण',
       dateTime: language === 'en' ? 'Date & Time of Incident' : 'घटना की तारीख और समय',
+      incidentType: language === 'en' ? 'Type of Incident' : 'घटना का प्रकार',
       details: language === 'en' ? 'Detailed Incident Description' : 'घटना का विस्तृत विवरण',
       evidence: language === 'en' ? 'Evidence Available (Optional)' : 'उपलब्ध सबूत (वैकल्पिक)',
       generateBtn: language === 'en' ? 'Generate FIR Draft' : 'FIR ड्राफ्ट उत्पन्न करें',
@@ -58,6 +63,21 @@ const FIRGenerator: React.FC<CommonViewProps> = ({ onBack, language, toggleLangu
       savedAlert: language === 'en' ? 'Draft saved to History!' : 'इतिहास में ड्राफ्ट सहेजा गया!',
       copyAlert: language === 'en' ? 'Draft copied to clipboard!' : 'ड्राफ्ट क्लिपबोर्ड पर कॉपी किया गया!',
       deleteConfirm: language === 'en' ? 'Are you sure you want to delete this draft?' : 'क्या आप वाकई इस ड्राफ्ट को हटाना चाहते हैं?',
+      micError: language === 'en' ? 'Speech recognition not supported in this browser.' : 'इस ब्राउज़र में वाक् पहचान समर्थित नहीं है।',
+      listening: language === 'en' ? 'Listening...' : 'सुन रहा हूँ...',
+      selectType: language === 'en' ? 'Select incident type...' : 'घटना का प्रकार चुनें...',
+  };
+
+  const incidentTypesMap: Record<string, { en: string; hi: string }> = {
+    [IncidentType.ASSAULT]: { en: 'Assault / Physical Violence', hi: 'हमला / शारीरिक हिंसा' },
+    [IncidentType.THEFT]: { en: 'Theft / Robbery', hi: 'चोरी / डकैती' },
+    [IncidentType.FRAUD]: { en: 'Fraud / Financial Crime', hi: 'धोखाधड़ी / वित्तीय अपराध' },
+    [IncidentType.CYBERCRIME]: { en: 'Cybercrime', hi: 'साइबर अपराध' },
+    [IncidentType.HARASSMENT]: { en: 'Harassment / Stalking', hi: 'उत्पीड़न / पीछा करना' },
+    [IncidentType.PROPERTY_DAMAGE]: { en: 'Property Damage / Vandalism', hi: 'संपत्ति का नुकसान / तोड़फोड़' },
+    [IncidentType.DOMESTIC_VIOLENCE]: { en: 'Domestic Violence', hi: 'घरेलू हिंसा' },
+    [IncidentType.CHEQUE_BOUNCE]: { en: 'Cheque Bounce', hi: 'चेक बाउंस' },
+    [IncidentType.OTHER]: { en: 'Other', hi: 'अन्य' },
   };
 
   const loadDrafts = async () => {
@@ -102,6 +122,54 @@ const FIRGenerator: React.FC<CommonViewProps> = ({ onBack, language, toggleLangu
     }
   };
 
+  const startListening = (field: keyof FIRFormData) => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+      alert(t.micError);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    recognition.onstart = () => {
+      setListeningField(field);
+    };
+
+    recognition.onend = () => {
+      setListeningField(null);
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error('Speech recognition error:', event.error);
+      setListeningField(null);
+    };
+
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      let textToUse = transcript;
+
+      if (language === 'hi') {
+        try {
+          textToUse = await translateText(transcript, 'en');
+        } catch (error) {
+          console.error('Translation error during STT:', error);
+          textToUse = transcript;
+        }
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        [field]: prev[field] ? `${prev[field]} ${textToUse}`.trim() : textToUse
+      }));
+    };
+
+    recognition.start();
+  };
+
   const validateForm = (): boolean => {
     const newErrors: Partial<Record<keyof FIRFormData, string>> = {};
     let isValid = true;
@@ -113,6 +181,11 @@ const FIRGenerator: React.FC<CommonViewProps> = ({ onBack, language, toggleLangu
 
     if (!formData.dateTime) {
         newErrors.dateTime = t.errReq;
+        isValid = false;
+    }
+
+    if (!formData.incidentType) {
+        newErrors.incidentType = t.errReq;
         isValid = false;
     }
 
@@ -199,37 +272,45 @@ const FIRGenerator: React.FC<CommonViewProps> = ({ onBack, language, toggleLangu
     setDraft('');
   }
 
-  const shareContent = async (title: string, text: string) => {
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text });
-      } catch (error) {
-        console.debug('Share cancelled or failed', error);
-      }
-    } else {
-      try {
-        await navigator.clipboard.writeText(text);
-        alert(t.copyAlert);
-      } catch (err) {
-        alert('Failed to copy content.');
-      }
-    }
-  };
-
-  const handleShare = async () => {
-    if (!draft) return;
-    await shareContent(`FIR Draft - ${formData.complainant}`, draft);
-  };
-
-  const handleShareHistoryItem = async (e: React.MouseEvent, item: SavedDraft) => {
-    e.stopPropagation();
-    await shareContent(`FIR Draft - ${item.formData.complainant}`, item.content);
-  };
-
   const handleCopy = () => {
     navigator.clipboard.writeText(draft);
     alert(t.copyAlert);
   }
+
+  // Fix: Implemented handleShare to allow users to share the generated draft
+  const handleShare = async () => {
+    if (!draft) return;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'FIR Draft from Nyaya Sahayak',
+          text: draft,
+        });
+      } catch (error) {
+        console.error('Error sharing:', error);
+      }
+    } else {
+      handleCopy();
+    }
+  };
+
+  // Fix: Implemented handleShareHistoryItem to allow sharing specific drafts from history
+  const handleShareHistoryItem = async (e: React.MouseEvent, item: SavedDraft) => {
+    e.stopPropagation();
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: item.name || 'FIR Draft from Nyaya Sahayak',
+          text: item.content,
+        });
+      } catch (error) {
+        console.error('Error sharing:', error);
+      }
+    } else {
+      navigator.clipboard.writeText(item.content);
+      alert(t.copyAlert);
+    }
+  };
 
   const handleDownloadPDF = (content: string, complainantName: string, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -272,7 +353,6 @@ const FIRGenerator: React.FC<CommonViewProps> = ({ onBack, language, toggleLangu
     }
   };
 
-  // Pagination logic
   const totalPages = Math.ceil(savedDrafts.length / ITEMS_PER_PAGE);
   const currentDrafts = savedDrafts.slice(
     (currentPage - 1) * ITEMS_PER_PAGE,
@@ -286,6 +366,20 @@ const FIRGenerator: React.FC<CommonViewProps> = ({ onBack, language, toggleLangu
   const handleNextPage = () => {
     if (currentPage < totalPages) setCurrentPage(p => p + 1);
   };
+
+  const renderMicButton = (field: keyof FIRFormData) => (
+    <button
+      onClick={() => startListening(field)}
+      className={`absolute right-3 top-9 p-1.5 rounded-full transition-all ${
+        listeningField === field 
+          ? 'bg-red-500 text-white animate-pulse' 
+          : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+      }`}
+      title={t.listening}
+    >
+      {listeningField === field ? <MicOff size={16} /> : <Mic size={16} />}
+    </button>
+  );
 
   if (showHistory) {
     return (
@@ -392,32 +486,34 @@ const FIRGenerator: React.FC<CommonViewProps> = ({ onBack, language, toggleLangu
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {!draft ? (
           <div className="space-y-4">
-            <div>
+            <div className="relative">
               <label className="block text-xs text-slate-400 mb-1">
                 {t.complainant} <span className="text-red-400">*</span>
               </label>
               <input
                 type="text"
-                className={`w-full bg-slate-800 border rounded-lg p-3 text-white focus:outline-none focus:border-blue-500 transition-colors ${errors.complainant ? 'border-red-500/50' : 'border-slate-700'}`}
+                className={`w-full bg-slate-800 border rounded-lg p-3 pr-12 text-white focus:outline-none focus:border-blue-500 transition-colors ${errors.complainant ? 'border-red-500/50' : 'border-slate-700'}`}
                 value={formData.complainant}
                 onChange={e => handleChange('complainant', e.target.value)}
                 placeholder={t.phComplainant}
               />
+              {renderMicButton('complainant')}
               {errors.complainant && (
                 <div className="flex items-center mt-1 text-red-400 text-xs">
                     <AlertCircle size={12} className="mr-1" /> {errors.complainant}
                 </div>
               )}
             </div>
-             <div>
+             <div className="relative">
               <label className="block text-xs text-slate-400 mb-1">{t.accused}</label>
               <input
                 type="text"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 pr-12 text-white focus:border-blue-500 focus:outline-none"
                 value={formData.accused}
                 onChange={e => handleChange('accused', e.target.value)}
                 placeholder={t.phAccused}
               />
+              {renderMicButton('accused')}
             </div>
              <div>
               <label className="block text-xs text-slate-400 mb-1">
@@ -435,31 +531,57 @@ const FIRGenerator: React.FC<CommonViewProps> = ({ onBack, language, toggleLangu
                 </div>
               )}
             </div>
-             <div>
+            
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">
+                {t.incidentType} <span className="text-red-400">*</span>
+              </label>
+              <select
+                className={`w-full bg-slate-800 border rounded-lg p-3 text-white focus:outline-none focus:border-blue-500 appearance-none transition-colors ${errors.incidentType ? 'border-red-500/50' : 'border-slate-700'}`}
+                value={formData.incidentType}
+                onChange={e => handleChange('incidentType', e.target.value)}
+              >
+                <option value="">{t.selectType}</option>
+                {Object.keys(incidentTypesMap).map(typeKey => (
+                  <option key={typeKey} value={typeKey}>
+                    {language === 'en' ? incidentTypesMap[typeKey].en : incidentTypesMap[typeKey].hi}
+                  </option>
+                ))}
+              </select>
+              {errors.incidentType && (
+                <div className="flex items-center mt-1 text-red-400 text-xs">
+                    <AlertCircle size={12} className="mr-1" /> {errors.incidentType}
+                </div>
+              )}
+            </div>
+
+             <div className="relative">
               <label className="block text-xs text-slate-400 mb-1">
                 {t.details} <span className="text-red-400">*</span>
               </label>
               <textarea
-                className={`w-full bg-slate-800 border rounded-lg p-3 text-white h-32 focus:outline-none focus:border-blue-500 transition-colors ${errors.incidentDetails ? 'border-red-500/50' : 'border-slate-700'}`}
+                className={`w-full bg-slate-800 border rounded-lg p-3 pr-12 text-white h-32 focus:outline-none focus:border-blue-500 transition-colors ${errors.incidentDetails ? 'border-red-500/50' : 'border-slate-700'}`}
                 value={formData.incidentDetails}
                 onChange={e => handleChange('incidentDetails', e.target.value)}
                 placeholder={t.phDetails}
               />
+               {renderMicButton('incidentDetails')}
                {errors.incidentDetails && (
                 <div className="flex items-center mt-1 text-red-400 text-xs">
                     <AlertCircle size={12} className="mr-1" /> {errors.incidentDetails}
                 </div>
               )}
             </div>
-             <div>
+             <div className="relative">
               <label className="block text-xs text-slate-400 mb-1">{t.evidence}</label>
               <input
                 type="text"
-                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 text-white focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-800 border border-slate-700 rounded-lg p-3 pr-12 text-white focus:border-blue-500 focus:outline-none"
                 placeholder={t.phEvidence}
                 value={formData.evidence}
                 onChange={e => handleChange('evidence', e.target.value)}
               />
+              {renderMicButton('evidence')}
             </div>
 
             <button

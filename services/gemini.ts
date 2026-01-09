@@ -1,5 +1,6 @@
+
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
-import { Language, AgentResponse } from '../types';
+import { Language, AgentResponse, ChatMessage } from '../types';
 
 const SYSTEM_INSTRUCTION = `You are an Indian legal expert AI named Nyaya Sahayak. 
 Always answer based strictly on Indian laws, including:
@@ -19,8 +20,7 @@ Disclaimer: Always start or end with a disclaimer that you are an AI and this is
 const AGENT_SYSTEM_INSTRUCTION = `You are “Nyaya Sahayak AI Agent” — an intelligent legal assistant designed for Indian courts.
 
 Your job:
-1. Understand user questions in Hinglish, Hindi, or English.
-2. Detect the user's intention automatically:
+1. Detect user's intention:
    - FIR drafting -> action: 'generateFIR'
    - Notice drafting -> action: 'generateNotice'
    - Case summary generation -> action: 'summarizeCase'
@@ -31,30 +31,43 @@ Your job:
    - Legal dictionary lookup -> action: 'dictionaryLookup'
    - General legal question -> action: 'generalAnswer'
 
-3. If required, ask follow-up questions in the 'response_text'.
-4. Return output in clean structured JSON format ONLY. Do not use Markdown formatting for the JSON itself.
+2. FIR COLLECTION MODE (CRITICAL):
+   If the user wants to draft an FIR (action 'generateFIR'):
+   - Gretting: "I can help you draft a FIR for the police. This is for informational purposes and is not legal advice."
+   - You MUST collect these details ONE BY ONE:
+     1. Complainant Name
+     2. Complainant Father's Name
+     3. Complainant Address
+     4. Complainant Contact Number
+     5. Accused Name (if known)
+     6. Accused Father's Name (if known)
+     7. Accused Address (if known)
+     8. Relationship between complainant and accused
+     9. Date & Time of the Incident
+     10. Place of Incident
+     11. Detailed description of the incident
+     12. Witnesses (if any)
+     13. Property lost/damaged (if any)
+   - RULE: Ask ONE question at a time. Wait for the answer.
+   - RULE: Confirm the answer before moving to the next.
+   - RULE: If description is given via speech-to-text style, summarize it in text.
+   - FINISHING: Once all 13 points are collected, summarize them clearly and ask: "Here is the information you provided. Shall I generate the FIR now?"
+   - DATA: Keep the collected information in the "data" object in your JSON response.
+
+3. Return output in structured JSON ONLY.
 
 JSON Structure:
 {
   "intent": "string",
   "confidence": "high/medium/low",
-  "required_fields": ["field1", "field2"],
+  "required_fields": ["field_currently_asking"],
   "response_text": "string (The actual reply to the user)",
-  "action": "string (one of the actions listed above)",
-  "data": {}
+  "action": "string",
+  "data": { "collected_fir_fields": {} }
 }
-
-App Agent Rules:
-- Be helpful and polite.
-- Only provide general legal guidance (not professional legal advice).
-- If the user query is unclear, ask for details.
-- If the user asks to perform a specific task that maps to an action (like "Draft an FIR"), set the action accordingly so the app can navigate.
-
-Language Support:
-- If the user input is Hindi, ensure 'response_text' is in Hindi.
-- If the user input is English, ensure 'response_text' is in English.
 `;
 
+// Initialize GoogleGenAI client with API key from environment
 const getClient = () => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
@@ -63,43 +76,43 @@ const getClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
-// Helper to translate text using Gemini
+// Fix: Using gemini-3-flash-preview for the basic text translation task
 export const translateText = async (text: string, targetLang: Language): Promise<string> => {
   if (!text) return "";
-  
   const ai = getClient();
-  const prompt = `Translate the following text to ${targetLang === 'en' ? 'English' : 'Hindi'}. Only return the translated text, nothing else. Text: "${text}"`;
-  
+  const prompt = `Translate to ${targetLang === 'en' ? 'English' : 'Hindi'}. Only return the translated text. Text: "${text}"`;
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
     return response.text?.trim() || text;
   } catch (error) {
-    console.error("Translation Error:", error);
     return text;
   }
 };
 
+// Fix: Using gemini-3-pro-preview for complex reasoning task of legal agent chat
 export const chatWithAgent = async (
-  message: string, 
+  messages: ChatMessage[], 
   language: Language
 ): Promise<AgentResponse> => {
   const ai = getClient();
   
+  const contents = messages.map(m => ({
+    role: m.role,
+    parts: [{ text: m.text }]
+  }));
+
   const langInstruction = language === 'hi' 
     ? " The user prefers Hindi. Ensure 'response_text' is in Hindi." 
     : " The user prefers English. Ensure 'response_text' is in English.";
 
-  const finalPrompt = message + langInstruction;
-
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: finalPrompt,
+      model: 'gemini-3-pro-preview',
+      contents: { parts: [{ text: AGENT_SYSTEM_INSTRUCTION + langInstruction }, ...contents.flatMap(c => c.parts)] } as any,
       config: {
-        systemInstruction: AGENT_SYSTEM_INSTRUCTION,
         responseMimeType: 'application/json',
       },
     });
@@ -111,7 +124,6 @@ export const chatWithAgent = async (
       const parsed: AgentResponse = JSON.parse(text);
       return parsed;
     } catch (e) {
-      console.error("JSON Parse Error", e);
       return {
         intent: 'general',
         confidence: 'low',
@@ -124,9 +136,8 @@ export const chatWithAgent = async (
   } catch (error) {
     console.error("Agent API Error:", error);
     const msg = language === 'hi' 
-      ? "क्षमा करें, कनेक्शन में समस्या है। कृपया पुनः प्रयास करें।" 
-      : "Sorry, there was a connection issue. Please try again.";
-    
+      ? "क्षमा करें, समस्या आ गई है।" 
+      : "Sorry, a connection issue occurred.";
     return {
         intent: 'error',
         confidence: 'low',
@@ -138,6 +149,7 @@ export const chatWithAgent = async (
   }
 };
 
+// Fix: Using gemini-3-pro-preview for specialized legal responses
 export const generateLegalResponse = async (
   prompt: string,
   language: Language = 'en',
@@ -145,36 +157,25 @@ export const generateLegalResponse = async (
 ): Promise<string> => {
   const ai = getClient();
   let finalPrompt = prompt;
-
-  // Translate input to English if language is Hindi
-  if (language === 'hi') {
-    finalPrompt = await translateText(prompt, 'en');
-  }
+  if (language === 'hi') finalPrompt = await translateText(prompt, 'en');
 
   try {
     const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-pro-preview',
       contents: finalPrompt,
       config: {
         systemInstruction: systemInstructionOverride || SYSTEM_INSTRUCTION,
       },
     });
-    
-    let resultText = response.text || "I could not generate a response. Please try again.";
-
-    // Translate output to Hindi if language is Hindi
-    if (language === 'hi') {
-        resultText = await translateText(resultText, 'hi');
-    }
-    
+    let resultText = response.text || "I could not generate a response.";
+    if (language === 'hi') resultText = await translateText(resultText, 'hi');
     return resultText;
   } catch (error) {
-    console.error("Gemini API Error:", error);
-    const msg = "An error occurred while connecting to the legal assistant. Please try again.";
-    return language === 'hi' ? await translateText(msg, 'hi') : msg;
+    return "An error occurred.";
   }
 };
 
+// Fix: Using gemini-3-pro-preview for complex multimodal document analysis
 export const analyzeDocument = async (
   base64Data: string,
   mimeType: string,
@@ -182,114 +183,70 @@ export const analyzeDocument = async (
   promptText: string = "Analyze this legal document."
 ): Promise<string> => {
   const ai = getClient();
-  
-  // Translate prompt if needed
   let finalPromptText = promptText;
-  if (language === 'hi') {
-      finalPromptText = await translateText(promptText, 'en');
-  }
+  if (language === 'hi') finalPromptText = await translateText(promptText, 'en');
 
   try {
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-pro-preview',
       contents: {
         parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: base64Data,
-            },
-          },
+          { inlineData: { mimeType: mimeType, data: base64Data } },
           { text: finalPromptText },
         ],
       },
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION + "\nAnalyze the document and provide: 1. Summary, 2. Key Allegations/Points, 3. Applicable Laws, 4. Case Strength/Risk, 5. Recommended Next Steps.",
+        systemInstruction: SYSTEM_INSTRUCTION + "\nAnalyze document: Summary, Allegations, Laws, Risk, Next Steps.",
       },
     });
-    
-    let result = response.text || "Could not analyze the document.";
-    
-    if (language === 'hi') {
-        result = await translateText(result, 'hi');
-    }
-
+    let result = response.text || "Could not analyze.";
+    if (language === 'hi') result = await translateText(result, 'hi');
     return result;
   } catch (error) {
-    console.error("Document Analysis Error:", error);
-    const msg = "Failed to analyze document. Please ensure it is a clear image or PDF.";
-    return language === 'hi' ? await translateText(msg, 'hi') : msg;
+    return "Failed to analyze document.";
   }
 };
 
+// Fix: Using gemini-3-pro-preview for technical FIR drafting
 export const generateFIRDraft = async (data: any, language: Language): Promise<string> => {
-  let complainant = data.complainant;
-  let incident = data.incidentDetails;
-  let evidence = data.evidence;
-
-  if (language === 'hi') {
-      complainant = await translateText(complainant, 'en');
-      incident = await translateText(incident, 'en');
-      evidence = await translateText(evidence, 'en');
-  }
-
   const prompt = `
     Draft a formal Police FIR (First Information Report) for an Indian Police Station based on:
-    Complainant: ${complainant}
-    Accused: ${data.accused}
-    Date/Time: ${data.dateTime}
-    Incident: ${incident}
-    Evidence: ${evidence}
+    - Complainant: ${data.complainant}
+    - Accused: ${data.accused}
+    - Date & Time: ${data.dateTime}
+    - Incident Type: ${data.incidentType}
+    - Incident Details: ${data.incidentDetails}
+    - Evidence: ${data.evidence}
     
-    Structure the FIR professionally. Cite specific Indian IPC/BNS sections applicable.
+    Structure professionally. Suggest and cite relevant Bharatiya Nyaya Sanhita (BNS) and IPC sections specifically for the Incident Type: "${data.incidentType}".
   `;
-  
   const ai = getClient();
   try {
       const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3-pro-preview',
           contents: prompt,
           config: { systemInstruction: SYSTEM_INSTRUCTION }
       });
       let text = response.text || "Error generating FIR";
-      
-      if (language === 'hi') {
-          text = await translateText(text, 'hi');
-      }
+      if (language === 'hi') text = await translateText(text, 'hi');
       return text;
   } catch (e) {
       return "Error generating FIR";
   }
 };
 
+// Fix: Using gemini-3-pro-preview for formal legal notice generation
 export const generateLegalNotice = async (type: string, details: string, language: Language): Promise<string> => {
-  let finalDetails = details;
-  if (language === 'hi') {
-      finalDetails = await translateText(details, 'en');
-  }
-
-  const prompt = `
-    Draft a formal Legal Notice for: ${type}.
-    Details of the case: ${finalDetails}.
-    
-    Include:
-    1. Legal Header
-    2. Reference to specific acts (e.g., Section 138 NI Act for cheque bounce).
-    3. Demand for action/payment within specific time (e.g., 15 days).
-    4. Warning of legal consequences.
-  `;
-
+  const prompt = `Draft formal Legal Notice for: ${type}. Case: ${details}. Include Header, Sections (e.g. 138 NI), Demand, Warning.`;
   const ai = getClient();
   try {
       const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
+          model: 'gemini-3-pro-preview',
           contents: prompt,
           config: { systemInstruction: SYSTEM_INSTRUCTION }
       });
       let text = response.text || "Error generating Notice";
-      if (language === 'hi') {
-          text = await translateText(text, 'hi');
-      }
+      if (language === 'hi') text = await translateText(text, 'hi');
       return text;
   } catch (e) {
       return "Error generating Notice";
@@ -297,19 +254,11 @@ export const generateLegalNotice = async (type: string, details: string, languag
 };
 
 export const getLawFinderResponse = async (incident: string, language: Language): Promise<string> => {
-  const prompt = `
-    Analyze this incident under Indian Law: "${incident}"
-    
-    Provide:
-    1. Applicable Sections (IPC/BNS, CrPC/BNSS, etc.)
-    2. Offence Classification (Bailable/Non-bailable, Cognizable/Non-cognizable).
-    3. Prescribed Punishment.
-    4. Detailed Explanation.
-  `;
+  const prompt = `Analyze: "${incident}". Provide: Sections, Classification, Punishment, Explanation.`;
   return generateLegalResponse(prompt, language);
 };
 
 export const getTimelineResponse = async (caseType: string, language: Language): Promise<string> => {
-    const prompt = `Generate a typical court timeline and procedural steps in India for a: ${caseType}. Include stages from filing to judgment/appeal.`;
+    const prompt = `Timeline for: ${caseType}. Include stages from filing to judgment.`;
     return generateLegalResponse(prompt, language);
 }

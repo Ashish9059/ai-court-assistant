@@ -1,3 +1,4 @@
+
 export enum View {
   HOME = 'HOME',
   CHAT = 'CHAT',
@@ -41,10 +42,23 @@ export interface ChatMessage {
   isLoading?: boolean;
 }
 
+export enum IncidentType {
+  ASSAULT = 'Assault / Physical Violence',
+  THEFT = 'Theft / Robbery',
+  FRAUD = 'Fraud / Financial Crime',
+  CYBERCRIME = 'Cybercrime',
+  HARASSMENT = 'Harassment / Stalking',
+  PROPERTY_DAMAGE = 'Property Damage / Vandalism',
+  DOMESTIC_VIOLENCE = 'Domestic Violence',
+  CHEQUE_BOUNCE = 'Cheque Bounce',
+  OTHER = 'Other',
+}
+
 export interface FIRFormData {
   complainant: string;
   accused: string;
   dateTime: string;
+  incidentType: IncidentType | '';
   incidentDetails: string;
   evidence: string;
 }

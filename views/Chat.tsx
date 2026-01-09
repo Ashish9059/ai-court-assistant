@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { ChatMessage, CommonViewProps, View, AgentAction } from '../types';
 import { chatWithAgent } from '../services/gemini';
@@ -16,7 +17,6 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) 
         : 'AI गलतियाँ कर सकता है। पेशेवर कानूनी सलाह का विकल्प नहीं है।',
       loading: language === 'en' ? 'Thinking...' : 'सोच रहा हूँ...',
       title: language === 'en' ? 'Legal Chat' : 'कानूनी चैट',
-      actionBtn: (action: string) => language === 'en' ? `Open ${action}` : `${action} खोलें`,
   };
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -24,6 +24,7 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) 
   const [isLoading, setIsLoading] = useState(false);
   const [isVoiceOn, setIsVoiceOn] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [collectedData, setCollectedData] = useState<any>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const synth = window.speechSynthesis;
@@ -42,7 +43,6 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) 
     scrollToBottom();
   }, [messages]);
 
-  // Handle TTS speaking state monitoring
   useEffect(() => {
     const interval = setInterval(() => {
         setIsSpeaking(synth.speaking);
@@ -54,7 +54,6 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) 
       if (!isVoiceOn) return;
       synth.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
-      // Set language for better pronunciation
       utterance.lang = language === 'hi' ? 'hi-IN' : 'en-IN';
       synth.speak(utterance);
   };
@@ -68,12 +67,14 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) 
       text: input,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
     setInput('');
     setIsLoading(true);
 
     try {
-      const response = await chatWithAgent(input, language);
+      // Pass the updated conversation history to maintain state for the collector agent
+      const response = await chatWithAgent(newMessages, language);
       
       const botMsg: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -82,13 +83,15 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) 
         action: response.action !== 'generalAnswer' ? response.action : undefined,
       };
       
+      if (response.data && response.data.collected_fir_fields) {
+          setCollectedData(response.data.collected_fir_fields);
+      }
+
       setMessages((prev) => [...prev, botMsg]);
-      
-      // Speak the response
       speak(response.response_text);
       
     } catch (error) {
-      // Handle error
+      console.error(error);
     } finally {
       setIsLoading(false);
     }
@@ -97,6 +100,15 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) 
   const handleActionClick = (action: AgentAction) => {
     if (!setView) return;
     
+    // If the agent indicates we are done collecting for an FIR, we could navigate
+    // to the FIR Generator with the pre-filled data.
+    if (action === 'generateFIR' && collectedData) {
+        // In a real app, we'd pass state to the generator.
+        // For now, we just navigate.
+        setView(View.FIR_GENERATOR);
+        return;
+    }
+
     switch (action) {
         case 'generateFIR': setView(View.FIR_GENERATOR); break;
         case 'generateNotice': setView(View.NOTICE_GENERATOR); break;
@@ -112,7 +124,7 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) 
 
   const getActionLabel = (action: AgentAction) => {
       switch(action) {
-          case 'generateFIR': return language === 'en' ? 'Go to FIR Generator' : 'FIR जनरेटर पर जाएं';
+          case 'generateFIR': return language === 'en' ? 'Start/Complete FIR' : 'FIR शुरू/पूर्ण करें';
           case 'generateNotice': return language === 'en' ? 'Go to Notice Generator' : 'नोटिस जनरेटर पर जाएं';
           case 'summarizeCase': return language === 'en' ? 'Go to Case Summary' : 'केस सारांश पर जाएं';
           case 'analyzeDocument': return language === 'en' ? 'Go to Document Analyzer' : 'दस्तावेज़ विश्लेषक पर जाएं';
@@ -128,12 +140,10 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) 
     <div className="flex flex-col h-full bg-darkbg">
        <div className="p-3 bg-cardbg border-b border-slate-700 flex justify-between items-center shadow-sm z-10">
           <div className="flex items-center space-x-3">
-             {/* Avatar in Header */}
              <AvatarAgent isSpeaking={isSpeaking} size="sm" />
              <h2 className="text-lg font-bold text-white">{t.title}</h2>
           </div>
           <div className="flex items-center space-x-2">
-            {/* Voice Toggle Button */}
             <button 
                 onClick={() => {
                     if(isVoiceOn) synth.cancel();
@@ -165,13 +175,11 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) 
             key={msg.id}
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start items-start space-x-2'}`}
           >
-            {/* Show Avatar next to model messages */}
             {msg.role === 'model' && (
                 <div className="mt-1 hidden sm:block">
                      <AvatarAgent isSpeaking={isSpeaking && msg.id === messages[messages.length-1].id} size="sm" />
                 </div>
             )}
-
             <div className="max-w-[85%] flex flex-col">
                 <div
                 className={`rounded-2xl p-3 text-sm shadow-sm ${
@@ -182,18 +190,7 @@ const Chat: React.FC<CommonViewProps> = ({ language, toggleLanguage, setView }) 
                 >
                     {msg.role === 'model' ? (
                         <div className="prose prose-invert prose-sm max-w-none">
-                            <ReactMarkdown 
-                                components={{
-                                    h1: ({node, ...props}) => <h1 className="text-base font-bold my-2 text-white" {...props} />,
-                                    h2: ({node, ...props}) => <h2 className="text-sm font-bold my-2 text-blue-300" {...props} />,
-                                    h3: ({node, ...props}) => <h3 className="text-sm font-bold my-1 text-blue-200" {...props} />,
-                                    ul: ({node, ...props}) => <ul className="list-disc ml-4 my-1" {...props} />,
-                                    li: ({node, ...props}) => <li className="my-0.5" {...props} />,
-                                    strong: ({node, ...props}) => <strong className="text-white font-semibold" {...props} />
-                                }}
-                            >
-                                {msg.text}
-                            </ReactMarkdown>
+                            <ReactMarkdown>{msg.text}</ReactMarkdown>
                         </div>
                     ) : (
                         msg.text
